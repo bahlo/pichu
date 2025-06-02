@@ -53,6 +53,7 @@ pub fn write(contents: impl Into<String>, to: impl AsRef<Path>) -> Result<(), Er
         fs::create_dir_all(parent)?;
     }
 
+    dbg!(to.as_ref());
     fs::write(to.as_ref(), contents.into())?;
     Ok(())
 }
