@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 description = "The static site generator designed to evolve with your needs."
 repository = "https://github.com/bahlo/pichu"
 readme = "README.md"
-keywords = ["static", "site", "generator", "ssg", "markdown", "html", "sass"]
+keywords = ["static", "markdown", "html", "sass"]
 
 
 [dependencies]
