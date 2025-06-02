@@ -2,6 +2,13 @@
 name = "pichu"
 version = "0.1.0"
 edition = "2021"
+authors = ["Arne Bahlo <hey@arne.me>"]
+license = "MIT OR Apache-2.0"
+description = "The static site generator designed to evolve with your needs."
+repository = "https://github.com/bahlo/pichu"
+readme = "README.md"
+keywords = ["static", "site", "generator", "ssg", "markdown", "html", "sass"]
+
 
 [dependencies]
 glob = "0.3"
