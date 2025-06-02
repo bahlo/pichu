@@ -1,26 +1,30 @@
 use rayon::prelude::*;
 use std::{
-    fs,
+    fs, io,
     path::{Path, PathBuf},
 };
 
 #[cfg(feature = "markdown")]
-use comrak::{markdown_to_html_with_plugins, plugins::syntect::SyntectAdapter};
+mod markdown;
 #[cfg(feature = "markdown")]
-use gray_matter::{engine::YAML, Matter};
-#[cfg(feature = "markdown")]
-use serde::de::DeserializeOwned;
-#[cfg(feature = "markdown")]
-use std::{fmt, fs::File, io::Read};
+pub use markdown::Markdown;
+
+#[cfg(feature = "sass")]
+mod sass;
+#[cfg(feature = "sass")]
+pub use sass::render_sass;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("io error: {0}")]
+    IO(#[from] io::Error),
     #[error("{0}")]
     GlobPatternError(#[from] glob::PatternError),
     #[error("{0}")]
     GlobError(#[from] glob::GlobError),
-    #[error("io error: {0}")]
-    IO(#[from] std::io::Error),
+    #[error("render fn error: {0}")]
+    RenderFn(#[from] Box<dyn std::error::Error + Send + Sync>),
+    // markdown
     #[cfg(feature = "markdown")]
     #[error("missing frontmatter in {0}")]
     MissingFrontmatter(PathBuf),
@@ -30,15 +34,16 @@ pub enum Error {
     #[cfg(feature = "markdown")]
     #[error("no file stem for: {0}")]
     NoFileStem(PathBuf),
-    #[error("render fn error: {0}")]
-    RenderFn(#[from] Box<dyn std::error::Error + Send + Sync>),
+    // sass
     #[cfg(feature = "sass")]
     #[error("failed to compile sass: {0}")]
     SassCompile(#[from] Box<grass::Error>),
 }
 
 pub fn glob(glob: impl AsRef<str>) -> Result<Glob, Error> {
-    let paths = glob::glob(glob.as_ref())?;
+    let paths = glob::glob(glob.as_ref())?
+        .into_iter()
+        .collect::<Result<Vec<PathBuf>, glob::GlobError>>()?;
     Ok(Glob { paths })
 }
 
@@ -54,7 +59,7 @@ pub fn write(contents: impl Into<String>, to: impl AsRef<Path>) -> Result<(), Er
 
 #[derive(Debug)]
 pub struct Glob {
-    paths: glob::Paths,
+    paths: Vec<PathBuf>,
 }
 
 impl Glob {
@@ -65,72 +70,15 @@ impl Glob {
         let inner = self
             .paths
             .into_iter()
-            .map(|path| parse_fn(path?))
+            .map(|path| parse_fn(path))
             .collect::<Result<Vec<T>, Error>>()?;
         Ok(Parsed { items: inner })
     }
-
-    #[cfg(feature = "markdown")]
-    pub fn parse_markdown<T: DeserializeOwned + fmt::Debug + Send + Sync>(
-        self,
-    ) -> Result<Parsed<Markdown<T>>, Error> {
-        let syntect_adapter = SyntectAdapter::new(None);
-        let markdown_context = MarkdownContext::new(&syntect_adapter);
-        let matter = Matter::<YAML>::new();
-
-        let parsed = self
-            .paths
-            .into_iter()
-            .map(|path| {
-                let path = path?;
-                let mut file = File::open(&path)?;
-                let mut contents = String::new();
-                file.read_to_string(&mut contents)?;
-
-                let markdown = matter.parse(&contents);
-                let frontmatter: T = markdown
-                    .data
-                    .ok_or(Error::MissingFrontmatter(path.clone()))?
-                    .deserialize()
-                    .map_err(|e| Error::DeserializeFrontmatter(path.clone(), e))?;
-
-                let html = markdown_to_html_with_plugins(
-                    &markdown.content,
-                    &markdown_context.options,
-                    &markdown_context.plugins,
-                );
-
-                let basename = path
-                    .file_stem()
-                    .ok_or_else(|| Error::NoFileStem(path.clone()))?
-                    .to_string_lossy()
-                    .to_string();
-
-                Ok(Markdown {
-                    frontmatter,
-                    basename,
-                    markdown: markdown.content,
-                    html,
-                })
-            })
-            .collect::<Result<Vec<Markdown<T>>, Error>>()?;
-
-        Ok(Parsed { items: parsed })
-    }
-}
-
-#[cfg(feature = "markdown")]
-#[derive(Debug, Clone)]
-pub struct Markdown<T> {
-    pub frontmatter: T,
-    pub basename: String,
-    pub markdown: String,
-    pub html: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct Parsed<T: Send + Sync> {
-    pub items: Vec<T>,
+    items: Vec<T>,
 }
 
 impl<T: Send + Sync> Parsed<T> {
@@ -193,59 +141,4 @@ impl<T: Send + Sync> Parsed<T> {
     pub fn first(&self) -> Option<&T> {
         self.items.first()
     }
-}
-
-#[cfg(feature = "markdown")]
-struct MarkdownContext<'a> {
-    plugins: comrak::Plugins<'a>,
-    options: comrak::Options<'a>,
-}
-
-#[cfg(feature = "markdown")]
-impl<'a> MarkdownContext<'a> {
-    fn new(syntect_adapter: &'a SyntectAdapter) -> Self {
-        let mut render = comrak::RenderOptions::default();
-        render.unsafe_ = true;
-        let mut extension = comrak::ExtensionOptions::default();
-        extension.strikethrough = true;
-        extension.tagfilter = true;
-        extension.table = true;
-        extension.superscript = true;
-        extension.header_ids = Some("".to_string());
-        extension.footnotes = true;
-        extension.description_lists = true;
-        let mut parse = comrak::ParseOptions::default();
-        parse.smart = true;
-        let options = comrak::Options {
-            render,
-            extension,
-            parse,
-        };
-        let mut render_plugins = comrak::RenderPlugins::default();
-        render_plugins.codefence_syntax_highlighter = Some(syntect_adapter);
-        let mut plugins = comrak::Plugins::default();
-        plugins.render = render_plugins;
-
-        Self { plugins, options }
-    }
-}
-
-#[cfg(feature = "sass")]
-pub fn render_sass(
-    source: impl AsRef<Path>,
-    destination: impl AsRef<Path>,
-) -> Result<String, Error> {
-    let source = source.as_ref();
-    let options = match source.parent() {
-        Some(parent) => grass::Options::default().load_path(parent),
-        None => grass::Options::default(),
-    };
-    let css = grass::from_path(source, &options)?;
-    let hash: String = blake3::hash(css.as_bytes())
-        .to_string()
-        .chars()
-        .take(16)
-        .collect();
-    write(css, destination)?;
-    Ok(hash)
 }
