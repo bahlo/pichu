@@ -30,3 +30,6 @@ blake3 = { version = "1.8", optional = true }
 default = ["markdown", "sass"]
 markdown = ["gray_matter", "serde", "syntect", "comrak", "serde_json"]
 sass = ["grass", "blake3"]
+
+[dev-dependencies]
+maud = "0.27"
