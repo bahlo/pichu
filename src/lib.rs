@@ -40,6 +40,8 @@ pub enum Error {
     GlobError(#[from] glob::GlobError),
     #[error("render fn error: {0}")]
     RenderFn(#[from] Box<dyn std::error::Error + Send + Sync>),
+    #[error("file exists: {0}")]
+    FileExists(PathBuf),
     // markdown
     #[cfg(feature = "markdown")]
     #[error("missing frontmatter in {0}")]
@@ -65,6 +67,40 @@ pub fn write(contents: impl Into<String>, to: impl AsRef<Path>) -> Result<(), Er
     }
 
     fs::write(to.as_ref(), contents.into())?;
+    Ok(())
+}
+
+// Copy the contents of a directory into another, recursively.
+// Skips files starting with a `.`, except `.well-known`.
+pub fn copy_dir(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), Error> {
+    fs::create_dir_all(to.as_ref())?;
+    fs::read_dir(from.as_ref())?
+        .into_iter()
+        .map(|entry| {
+            let entry = entry?;
+            let file_name = entry.file_name();
+
+            let file_name_str = file_name.to_string_lossy();
+            if file_name_str.starts_with('.') && file_name_str != ".well-known" {
+                return Ok(());
+            }
+
+            let new_path = to.as_ref().join(file_name);
+            if entry.path().is_dir() {
+                fs::create_dir(&new_path)?;
+                copy_dir(entry.path(), &new_path)?;
+            } else {
+                if new_path.exists() {
+                    return Err(Error::FileExists(new_path));
+                }
+
+                let path = entry.path();
+                fs::copy(path, new_path)?;
+            }
+
+            Ok(())
+        })
+        .collect::<Result<Vec<()>, Error>>()?;
     Ok(())
 }
 
