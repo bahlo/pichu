@@ -159,20 +159,20 @@ impl<T: Send + Sync> Parsed<T> {
     /// Sort the items by the key provided, ascending.
     pub fn sort_by_key<K, F>(mut self, f: F) -> Self
     where
-        F: FnMut(&T) -> K,
+        F: Fn(&T) -> K + Sync,
         K: Ord,
     {
-        self.items.sort_by_key(f);
+        self.items.par_sort_by_key(f);
         self
     }
 
     /// Sort the items by the key provided, descending.
     pub fn sort_by_key_reverse<K, F>(mut self, f: F) -> Self
     where
-        F: FnMut(&T) -> K,
+        F: Fn(&T) -> K + Sync,
         K: Ord,
     {
-        self.items.sort_by_key(f);
+        self.items.par_sort_by_key(f);
         self.items.reverse();
         self
     }
