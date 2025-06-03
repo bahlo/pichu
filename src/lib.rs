@@ -3,12 +3,28 @@
 //! # Example
 //!
 //! ```
-//! fn main() -> Box<dyn std::error::Error> {
+//! use serde::Deserialize;
+//! use pichu::Markdown;
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     pichu::glob("content/blog/*.md")?
-//!         .parse_markdown::<BlogFrontmatter>()?
+//!         .parse_markdown::<Blogpost>()?
 //!         .render_each(render_blog_post, |post| format!("dist/blog/{}/index.html", post.basename))?
 //!         .render_all(render_blog, "dist/blog/index.html")?;
 //!     Ok(())
+//! }
+//!
+//! #[derive(Debug, Deserialize)]
+//! struct Blogpost {
+//!     title: String,
+//! }
+//!
+//! fn render_blog_post(post: &Markdown<Blogpost>) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+//!     Ok(format!("<h1>{}</h1>{}", post.frontmatter.title, post.html))
+//! }
+//!
+//! fn render_blog(posts: &Vec<Markdown<Blogpost>>) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+//!     Ok(format!("{} posts", posts.len()))
 //! }
 //! ```
 
@@ -105,12 +121,6 @@ pub fn copy_dir(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), Erro
 }
 
 /// Get a list of paths that match the given glob.
-///
-/// # Examples
-///
-/// ```
-/// let glob = pichu::glob("content/blog/*.md")?;
-/// ```
 pub fn glob(glob: impl AsRef<str>) -> Result<Glob, Error> {
     let paths = glob::glob(glob.as_ref())?
         .into_iter()
