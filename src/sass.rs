@@ -2,6 +2,9 @@ use std::path::Path;
 
 use crate::{write, Error};
 
+/// Render a SASS/SCSS file to the destination.
+/// Other SASS/SCSS files next to the provided one will be available for
+/// inclusion.
 pub fn render_sass<A: AsRef<Path>>(
     source: impl AsRef<Path>,
     destination: A,

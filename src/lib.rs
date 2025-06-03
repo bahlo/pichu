@@ -1,3 +1,17 @@
+//! Pichu is the static site generator designed to evolve with your needs.
+//!
+//! # Example
+//!
+//! ```
+//! fn main() -> Box<dyn std::error::Error> {
+//!     pichu::glob("content/blog/*.md")?
+//!         .parse_markdown::<BlogFrontmatter>()?
+//!         .render_each(render_blog_post, |post| format!("dist/blog/{}/index.html", post.basename))?
+//!         .render_all(render_blog, "dist/blog/index.html")?;
+//!     Ok(())
+//! }
+//! ```
+
 use rayon::prelude::*;
 use std::{
     fs, io,
@@ -14,6 +28,8 @@ mod sass;
 #[cfg(feature = "sass")]
 pub use sass::render_sass;
 
+/// The error type returned in this crate.
+#[non_exhaustive]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("io error: {0}")]
@@ -40,13 +56,8 @@ pub enum Error {
     SassCompile(#[from] Box<grass::Error>),
 }
 
-pub fn glob(glob: impl AsRef<str>) -> Result<Glob, Error> {
-    let paths = glob::glob(glob.as_ref())?
-        .into_iter()
-        .collect::<Result<Vec<PathBuf>, glob::GlobError>>()?;
-    Ok(Glob { paths })
-}
-
+/// Write contents to a file. The biggest difference to [`fs::write`] is that this
+/// creates subdirectories as necessary.
 pub fn write(contents: impl Into<String>, to: impl AsRef<Path>) -> Result<(), Error> {
     // Create directory tree
     if let Some(parent) = to.as_ref().parent() {
@@ -57,31 +68,49 @@ pub fn write(contents: impl Into<String>, to: impl AsRef<Path>) -> Result<(), Er
     Ok(())
 }
 
+/// Get a list of paths that match the given glob.
+///
+/// # Examples
+///
+/// ```
+/// let glob = pichu::glob("content/blog/*.md")?;
+/// ```
+pub fn glob(glob: impl AsRef<str>) -> Result<Glob, Error> {
+    let paths = glob::glob(glob.as_ref())?
+        .into_iter()
+        .collect::<Result<Vec<PathBuf>, glob::GlobError>>()?;
+    Ok(Glob { paths })
+}
+
+/// A list of paths, probably created by [`glob`].
 #[derive(Debug)]
 pub struct Glob {
     paths: Vec<PathBuf>,
 }
 
 impl Glob {
+    /// Parse the files in parallel using the provided parse_fn.
     pub fn parse<T: Send + Sync>(
         self,
-        parse_fn: impl Fn(PathBuf) -> Result<T, Error>,
+        parse_fn: impl Fn(PathBuf) -> Result<T, Error> + Send + Sync,
     ) -> Result<Parsed<T>, Error> {
         let inner = self
             .paths
-            .into_iter()
+            .into_par_iter()
             .map(|path| parse_fn(path))
             .collect::<Result<Vec<T>, Error>>()?;
         Ok(Parsed { items: inner })
     }
 }
 
+/// Parsed is a list of parsed items, ready to be sorted and rendered.
 #[derive(Debug, Clone)]
 pub struct Parsed<T: Send + Sync> {
     items: Vec<T>,
 }
 
 impl<T: Send + Sync> Parsed<T> {
+    /// Sort the items by the key provided, ascending.
     pub fn sort_by_key<K, F>(mut self, f: F) -> Self
     where
         F: FnMut(&T) -> K,
@@ -91,6 +120,7 @@ impl<T: Send + Sync> Parsed<T> {
         self
     }
 
+    /// Sort the items by the key provided, descending.
     pub fn sort_by_key_reverse<K, F>(mut self, f: F) -> Self
     where
         F: FnMut(&T) -> K,
@@ -101,6 +131,7 @@ impl<T: Send + Sync> Parsed<T> {
         self
     }
 
+    /// Render individual items in parallel using the provided render function.
     pub fn render_each<
         P: AsRef<Path>,
         S: Into<String> + Send,
@@ -124,6 +155,7 @@ impl<T: Send + Sync> Parsed<T> {
         Ok(self)
     }
 
+    /// Render all items into a single destination.
     pub fn render_all<S: Into<String>, E: Into<Box<dyn std::error::Error + Send + Sync>>>(
         self,
         render_fn: impl Fn(&Vec<T>) -> Result<S, E>,
@@ -134,10 +166,12 @@ impl<T: Send + Sync> Parsed<T> {
         Ok(self)
     }
 
+    /// Extract the underlying `Vec<T>` for further processing.
     pub fn into_vec(self) -> Vec<T> {
         self.items
     }
 
+    /// Return a reference to the first item, or `None` if empty.
     pub fn first(&self) -> Option<&T> {
         self.items.first()
     }
