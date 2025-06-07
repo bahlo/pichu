@@ -74,15 +74,12 @@ pub enum Error {
     SassCompile(#[from] Box<grass::Error>),
 }
 
-/// Write contents to a file. The biggest difference to [`fs::write`] is that this
-/// creates subdirectories as necessary.
-pub fn write(contents: impl Into<String>, to: impl AsRef<Path>) -> Result<(), Error> {
-    // Create directory tree
-    if let Some(parent) = to.as_ref().parent() {
+/// Like [`fs::write`], but creates directories as necessary.
+pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> Result<(), Error> {
+    if let Some(parent) = path.as_ref().parent() {
         fs::create_dir_all(parent)?;
     }
-
-    fs::write(to.as_ref(), contents.into())?;
+    fs::write(path, contents)?;
     Ok(())
 }
 
@@ -196,7 +193,7 @@ impl<T: Send + Sync> Parsed<T> {
             .collect::<Result<Vec<_>, E>>()
             .map_err(|e| Error::RenderFn(e.into()))?
             .into_par_iter()
-            .map(|(item, content)| write(content.into(), build_path_fn(&item)))
+            .map(|(item, content)| write(build_path_fn(&item), content.into()))
             .collect::<Result<Vec<_>, Error>>()?;
         Ok(self)
     }
@@ -208,7 +205,7 @@ impl<T: Send + Sync> Parsed<T> {
         dest_path: impl AsRef<Path>,
     ) -> Result<Self, Error> {
         let content = render_fn(&self.items).map_err(|e| Error::RenderFn(e.into()))?;
-        write(content.into(), dest_path)?;
+        write(dest_path, content.into())?;
         Ok(self)
     }
 
@@ -220,5 +217,31 @@ impl<T: Send + Sync> Parsed<T> {
     /// Return a reference to the first item, or `None` if empty.
     pub fn first(&self) -> Option<&T> {
         self.items.first()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{env, fs};
+
+    #[test]
+    fn test_write() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = env::temp_dir().join("pichu_test_write");
+        if dir.exists() {
+            fs::remove_dir_all(&dir)?;
+        }
+
+        // Write file to a non-existing subdirectory
+        let content = "foo bar";
+        let filepath = dir.join("foo/bar/baz.txt");
+        write(&filepath, content)?;
+
+        // Ensure the file exists and directories have been created
+        assert_eq!(fs::read_to_string(filepath)?, content);
+
+        fs::remove_dir_all(&dir)?;
+
+        Ok(())
     }
 }
