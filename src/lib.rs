@@ -37,12 +37,12 @@ use std::{
 #[cfg(feature = "markdown")]
 mod markdown;
 #[cfg(feature = "markdown")]
-pub use markdown::Markdown;
+pub use markdown::{Markdown, MarkdownError};
 
 #[cfg(feature = "sass")]
 mod sass;
 #[cfg(feature = "sass")]
-pub use sass::render_sass;
+pub use sass::{render_sass, SassError};
 
 /// The error type returned in this crate.
 #[derive(thiserror::Error, Debug)]
