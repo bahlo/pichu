@@ -51,40 +51,38 @@ impl Glob {
         let markdown_context = MarkdownContext::new(&syntect_adapter);
         let matter = Matter::<YAML>::new();
 
-        self.parse::<Markdown<T>>(
-            |path: PathBuf| -> Result<Markdown<T>, Box<dyn std::error::Error + Send>> {
-                let mut file = File::open(&path).map_err(MarkdownError::IO)?;
-                let mut contents = String::new();
-                file.read_to_string(&mut contents)
-                    .map_err(MarkdownError::IO)?;
+        self.try_parse::<Markdown<T>, MarkdownError>(|path| {
+            let mut file = File::open(&path).map_err(MarkdownError::IO)?;
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)
+                .map_err(MarkdownError::IO)?;
 
-                let markdown = matter.parse(&contents);
-                let frontmatter: T = markdown
-                    .data
-                    .ok_or(MarkdownError::MissingFrontmatter(path.clone()))?
-                    .deserialize()
-                    .map_err(|e| MarkdownError::DeserializeFrontmatter(path.clone(), e))?;
+            let markdown = matter.parse(&contents);
+            let frontmatter: T = markdown
+                .data
+                .ok_or(MarkdownError::MissingFrontmatter(path.clone()))?
+                .deserialize()
+                .map_err(|e| MarkdownError::DeserializeFrontmatter(path.clone(), e))?;
 
-                let html = markdown_to_html_with_plugins(
-                    &markdown.content,
-                    &markdown_context.options,
-                    &markdown_context.plugins,
-                );
+            let html = markdown_to_html_with_plugins(
+                &markdown.content,
+                &markdown_context.options,
+                &markdown_context.plugins,
+            );
 
-                let basename = path
-                    .file_stem()
-                    .ok_or_else(|| MarkdownError::NoFileStem(path.clone()))?
-                    .to_string_lossy()
-                    .to_string();
+            let basename = path
+                .file_stem()
+                .ok_or_else(|| MarkdownError::NoFileStem(path.clone()))?
+                .to_string_lossy()
+                .to_string();
 
-                Ok(Markdown {
-                    frontmatter,
-                    basename,
-                    markdown: markdown.content,
-                    html,
-                })
-            },
-        )
+            Ok(Markdown {
+                frontmatter,
+                basename,
+                markdown: markdown.content,
+                html,
+            })
+        })
     }
 }
 

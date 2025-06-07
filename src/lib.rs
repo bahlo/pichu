@@ -116,18 +116,23 @@ pub struct Glob {
 }
 
 impl Glob {
+    pub fn parse<T: Send + Sync>(self, parse_fn: impl Fn(PathBuf) -> T + Send + Sync) -> Parsed<T> {
+        let items = self.paths.into_par_iter().map(parse_fn).collect::<Vec<T>>();
+        Parsed { items }
+    }
+
     /// Parse the files in parallel using the provided parse_fn.
-    pub fn parse<T: Send + Sync>(
+    pub fn try_parse<T: Send + Sync, E: std::error::Error + Send + 'static>(
         self,
-        parse_fn: impl Fn(PathBuf) -> Result<T, Box<dyn std::error::Error + Send>> + Send + Sync,
+        parse_fn: impl Fn(PathBuf) -> Result<T, E> + Send + Sync,
     ) -> Result<Parsed<T>, Error> {
-        let inner = self
+        let items = self
             .paths
             .into_par_iter()
             .map(parse_fn)
-            .collect::<Result<Vec<T>, Box<dyn std::error::Error + Send>>>()
-            .map_err(Error::Parse)?;
-        Ok(Parsed { items: inner })
+            .collect::<Result<Vec<T>, E>>()
+            .map_err(|e| Error::Parse(Box::new(e)))?;
+        Ok(Parsed { items })
     }
 }
 
@@ -273,15 +278,31 @@ mod tests {
         struct Blog {
             title: String,
         }
-        fn parse_fn(_path: PathBuf) -> Result<Blog, Box<dyn std::error::Error + Send>> {
-            Ok(Blog {
+
+        let parsed = glob("examples/content/blog/*.md")?
+            .parse::<Blog>(|_path| Blog {
                 title: "foo".to_string(),
             })
-        }
-        let parsed = glob("examples/content/blog/*.md")?
-            .parse::<Blog>(parse_fn)?
             .into_vec();
         assert_eq!(&parsed[0].title, "foo");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_try_parse() -> Result<(), Box<dyn std::error::Error>> {
+        #[derive(Deserialize)]
+        struct File {
+            contents: String,
+        }
+
+        let parsed = glob("examples/content/blog/*.md")?
+            .try_parse::<File, io::Error>(|path| {
+                let contents = fs::read_to_string(path)?;
+                Ok(File { contents })
+            })?
+            .into_vec();
+        assert!(!parsed[0].contents.is_empty());
 
         Ok(())
     }
