@@ -54,11 +54,11 @@ pub enum Error {
     #[error("{0}")]
     GlobError(#[from] glob::GlobError),
     #[error("render fn error: {0}")]
-    RenderFn(#[from] Box<dyn std::error::Error + Send>),
+    RenderFn(#[from] Box<dyn std::error::Error + Send + Sync>),
     #[error("file exists: {0}")]
     FileExists(PathBuf),
     #[error("parse error; {0}")]
-    Parse(Box<dyn std::error::Error + Send>),
+    Parse(Box<dyn std::error::Error + Send + Sync>),
 }
 
 /// Like [`fs::write`], but creates directories as necessary.
@@ -122,7 +122,7 @@ impl Glob {
     }
 
     /// Parse the files in parallel using the provided parse_fn.
-    pub fn try_parse<T: Send + Sync, E: std::error::Error + Send + 'static>(
+    pub fn try_parse<T: Send + Sync, E: std::error::Error + Send + Sync + 'static>(
         self,
         parse_fn: impl Fn(PathBuf) -> Result<T, E> + Send + Sync,
     ) -> Result<Parsed<T>, Error> {
@@ -187,7 +187,7 @@ impl<T: Send + Sync> Parsed<T> {
     pub fn try_render_each<
         P: AsRef<Path>,
         S: Into<String> + Send,
-        E: std::error::Error + Send + 'static,
+        E: std::error::Error + Send + Sync + 'static,
     >(
         self,
         render_fn: impl Fn(&T) -> Result<S, E> + Send + Sync,
@@ -219,7 +219,7 @@ impl<T: Send + Sync> Parsed<T> {
     }
 
     /// Render all items into a single destination.
-    pub fn try_render_all<S: Into<String>, E: Into<Box<dyn std::error::Error + Send + Sync>>>(
+    pub fn try_render_all<S: Into<String>, E: std::error::Error + Send + Sync + 'static>(
         self,
         render_fn: impl Fn(&Vec<T>) -> Result<S, E>,
         dest_path: impl AsRef<Path>,
