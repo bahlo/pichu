@@ -19,12 +19,12 @@
 //!     title: String,
 //! }
 //!
-//! fn render_blog_post(post: &Markdown<Blogpost>) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-//!     Ok(format!("<h1>{}</h1>{}", post.frontmatter.title, post.html))
+//! fn render_blog_post(post: &Markdown<Blogpost>) -> String {
+//!     format!("<h1>{}</h1>{}", post.frontmatter.title, post.html)
 //! }
 //!
-//! fn render_blog(posts: &Vec<Markdown<Blogpost>>) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-//!     Ok(format!("{} posts", posts.len()))
+//! fn render_blog(posts: &Vec<Markdown<Blogpost>>) -> String {
+//!     format!("{} posts", posts.len())
 //! }
 //! ```
 
@@ -165,10 +165,29 @@ impl<T: Send + Sync> Parsed<T> {
     }
 
     /// Render individual items in parallel using the provided render function.
-    pub fn render_each<
+    pub fn render_each<P: AsRef<Path>, S: Into<String> + Send>(
+        self,
+        render_fn: impl Fn(&T) -> S + Send + Sync,
+        build_path_fn: impl Fn(&T) -> P + Send + Sync,
+    ) -> Result<Self, Error> {
+        self.items
+            .par_iter()
+            .map(|item| {
+                let content = render_fn(item);
+                (item, content)
+            })
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|(item, content)| write(build_path_fn(item), content.into()).map_err(Error::IO))
+            .collect::<Result<Vec<_>, Error>>()?;
+        Ok(self)
+    }
+
+    /// Render individual items in parallel using the provided render function.
+    pub fn try_render_each<
         P: AsRef<Path>,
         S: Into<String> + Send,
-        E: Into<Box<dyn std::error::Error + Send + Sync>> + Send,
+        E: std::error::Error + Send + 'static,
     >(
         self,
         render_fn: impl Fn(&T) -> Result<S, E> + Send + Sync,
@@ -181,7 +200,7 @@ impl<T: Send + Sync> Parsed<T> {
                 Ok((item, content))
             })
             .collect::<Result<Vec<_>, E>>()
-            .map_err(|e| Error::RenderFn(e.into()))?
+            .map_err(|e| Error::RenderFn(Box::new(e)))?
             .into_par_iter()
             .map(|(item, content)| write(build_path_fn(item), content.into()).map_err(Error::IO))
             .collect::<Result<Vec<_>, Error>>()?;
@@ -189,7 +208,18 @@ impl<T: Send + Sync> Parsed<T> {
     }
 
     /// Render all items into a single destination.
-    pub fn render_all<S: Into<String>, E: Into<Box<dyn std::error::Error + Send + Sync>>>(
+    pub fn render_all<S: Into<String>>(
+        self,
+        render_fn: impl Fn(&Vec<T>) -> S,
+        dest_path: impl AsRef<Path>,
+    ) -> Result<Self, Error> {
+        let content = render_fn(&self.items);
+        write(dest_path, content.into())?;
+        Ok(self)
+    }
+
+    /// Render all items into a single destination.
+    pub fn try_render_all<S: Into<String>, E: Into<Box<dyn std::error::Error + Send + Sync>>>(
         self,
         render_fn: impl Fn(&Vec<T>) -> Result<S, E>,
         dest_path: impl AsRef<Path>,

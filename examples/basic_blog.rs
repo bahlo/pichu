@@ -11,14 +11,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse_markdown::<Blogpost>()?
         .render_each(render_blogpost, |post| {
             format!("examples/dist/basic_blog/{}/index.html", post.basename)
-        })?;
+        });
 
     Ok(())
 }
 
-fn render_blogpost(
-    post: &Markdown<Blogpost>,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+fn render_blogpost(post: &Markdown<Blogpost>) -> String {
     // Check out other examples for more advanced templating
-    Ok(format!("<h1>{}</h1>{}", post.frontmatter.title, post.html))
+    format!("<h1>{}</h1>{}", post.frontmatter.title, post.html)
 }
