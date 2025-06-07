@@ -244,4 +244,22 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_copy_dir() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = env::temp_dir().join("pichu_test_copy_dir");
+        if dir.exists() {
+            fs::remove_dir_all(&dir)?;
+        }
+
+        copy_dir("examples", &dir)?;
+
+        assert!(dir.join("maud.rs").exists());
+        assert!(dir.join("content/about.md").exists());
+        assert!(dir.join("content/blog/hello-world.md").exists());
+
+        fs::remove_dir_all(&dir)?;
+
+        Ok(())
+    }
 }
