@@ -45,7 +45,6 @@ mod sass;
 pub use sass::render_sass;
 
 /// The error type returned in this crate.
-#[non_exhaustive]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("io error: {0}")]
@@ -60,14 +59,10 @@ pub enum Error {
     FileExists(PathBuf),
     #[error("parse error; {0}")]
     Parse(Box<dyn std::error::Error + Send>),
-    // sass
-    #[cfg(feature = "sass")]
-    #[error("failed to compile sass: {0}")]
-    SassCompile(#[from] Box<grass::Error>),
 }
 
 /// Like [`fs::write`], but creates directories as necessary.
-pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> Result<(), Error> {
+pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> Result<(), io::Error> {
     if let Some(parent) = path.as_ref().parent() {
         fs::create_dir_all(parent)?;
     }
@@ -186,7 +181,7 @@ impl<T: Send + Sync> Parsed<T> {
             .collect::<Result<Vec<_>, E>>()
             .map_err(|e| Error::RenderFn(e.into()))?
             .into_par_iter()
-            .map(|(item, content)| write(build_path_fn(&item), content.into()))
+            .map(|(item, content)| write(build_path_fn(&item), content.into()).map_err(Error::IO))
             .collect::<Result<Vec<_>, Error>>()?;
         Ok(self)
     }

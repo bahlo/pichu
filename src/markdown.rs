@@ -10,7 +10,6 @@ use std::{
 
 use crate::{Error, Glob, Parsed};
 
-#[non_exhaustive]
 #[derive(thiserror::Error, Debug)]
 pub enum MarkdownError {
     #[error("io error: {0}")]
