@@ -123,7 +123,7 @@ impl Glob {
     ) -> Result<Parsed<T>, Error> {
         let inner = self
             .paths
-            .into_iter()
+            .into_par_iter()
             .map(parse_fn)
             .collect::<Result<Vec<T>, Box<dyn std::error::Error + Send>>>()
             .map_err(Error::Parse)?;
