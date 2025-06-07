@@ -262,4 +262,21 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_glob() -> Result<(), Box<dyn std::error::Error>> {
+        let paths = glob("examples/content/**/*.md")?.paths;
+        assert_eq!(paths.len(), 2);
+        assert_eq!(paths[0].to_str().unwrap(), "examples/content/about.md");
+        assert_eq!(
+            paths[1].to_str().unwrap(),
+            "examples/content/blog/hello-world.md"
+        );
+
+        let paths = glob("examples/content/*.md")?.paths;
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0].to_str().unwrap(), "examples/content/about.md");
+
+        Ok(())
+    }
 }
