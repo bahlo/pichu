@@ -75,7 +75,6 @@ pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> Result<(), i
 pub fn copy_dir(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), Error> {
     fs::create_dir_all(to.as_ref())?;
     fs::read_dir(from.as_ref())?
-        .into_iter()
         .map(|entry| {
             let entry = entry?;
             let file_name = entry.file_name();
@@ -106,9 +105,7 @@ pub fn copy_dir(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), Erro
 
 /// Get a list of paths that match the given glob.
 pub fn glob(glob: impl AsRef<str>) -> Result<Glob, Error> {
-    let paths = glob::glob(glob.as_ref())?
-        .into_iter()
-        .collect::<Result<Vec<PathBuf>, glob::GlobError>>()?;
+    let paths = glob::glob(glob.as_ref())?.collect::<Result<Vec<PathBuf>, glob::GlobError>>()?;
     Ok(Glob { paths })
 }
 
@@ -127,9 +124,9 @@ impl Glob {
         let inner = self
             .paths
             .into_iter()
-            .map(|path| parse_fn(path))
+            .map(parse_fn)
             .collect::<Result<Vec<T>, Box<dyn std::error::Error + Send>>>()
-            .map_err(|e| Error::Parse(e))?;
+            .map_err(Error::Parse)?;
         Ok(Parsed { items: inner })
     }
 }
@@ -175,13 +172,13 @@ impl<T: Send + Sync> Parsed<T> {
         self.items
             .par_iter()
             .map(|item| {
-                let content = render_fn(&item)?;
+                let content = render_fn(item)?;
                 Ok((item, content))
             })
             .collect::<Result<Vec<_>, E>>()
             .map_err(|e| Error::RenderFn(e.into()))?
             .into_par_iter()
-            .map(|(item, content)| write(build_path_fn(&item), content.into()).map_err(Error::IO))
+            .map(|(item, content)| write(build_path_fn(item), content.into()).map_err(Error::IO))
             .collect::<Result<Vec<_>, Error>>()?;
         Ok(self)
     }

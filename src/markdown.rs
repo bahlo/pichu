@@ -95,27 +95,36 @@ struct MarkdownContext<'a> {
 
 impl<'a> MarkdownContext<'a> {
     fn new(syntect_adapter: &'a SyntectAdapter) -> Self {
-        let mut render = comrak::RenderOptions::default();
-        render.unsafe_ = true;
-        let mut extension = comrak::ExtensionOptions::default();
-        extension.strikethrough = true;
-        extension.tagfilter = true;
-        extension.table = true;
-        extension.superscript = true;
-        extension.header_ids = Some("".to_string());
-        extension.footnotes = true;
-        extension.description_lists = true;
-        let mut parse = comrak::ParseOptions::default();
-        parse.smart = true;
+        let render = comrak::RenderOptions {
+            unsafe_: true,
+            ..Default::default()
+        };
+        let extension = comrak::ExtensionOptions {
+            strikethrough: true,
+            tagfilter: true,
+            table: true,
+            superscript: true,
+            header_ids: Some("".to_string()),
+            footnotes: true,
+            description_lists: true,
+            ..Default::default()
+        };
+        let parse = comrak::ParseOptions {
+            smart: true,
+            ..Default::default()
+        };
         let options = comrak::Options {
             render,
             extension,
             parse,
         };
-        let mut render_plugins = comrak::RenderPlugins::default();
-        render_plugins.codefence_syntax_highlighter = Some(syntect_adapter);
-        let mut plugins = comrak::Plugins::default();
-        plugins.render = render_plugins;
+        let render_plugins = comrak::RenderPlugins {
+            codefence_syntax_highlighter: Some(syntect_adapter),
+            ..Default::default()
+        };
+        let plugins = comrak::Plugins {
+            render: render_plugins,
+        };
 
         Self { plugins, options }
     }
