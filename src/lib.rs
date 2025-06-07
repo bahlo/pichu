@@ -55,19 +55,11 @@ pub enum Error {
     #[error("{0}")]
     GlobError(#[from] glob::GlobError),
     #[error("render fn error: {0}")]
-    RenderFn(#[from] Box<dyn std::error::Error + Send + Sync>),
+    RenderFn(#[from] Box<dyn std::error::Error + Send>),
     #[error("file exists: {0}")]
     FileExists(PathBuf),
-    // markdown
-    #[cfg(feature = "markdown")]
-    #[error("missing frontmatter in {0}")]
-    MissingFrontmatter(PathBuf),
-    #[cfg(feature = "markdown")]
-    #[error("failed to deserialize frontmatter for {0}: {1}")]
-    DeserializeFrontmatter(PathBuf, serde_json::error::Error),
-    #[cfg(feature = "markdown")]
-    #[error("no file stem for: {0}")]
-    NoFileStem(PathBuf),
+    #[error("parse error; {0}")]
+    Parse(Box<dyn std::error::Error + Send>),
     // sass
     #[cfg(feature = "sass")]
     #[error("failed to compile sass: {0}")]
@@ -135,13 +127,14 @@ impl Glob {
     /// Parse the files in parallel using the provided parse_fn.
     pub fn parse<T: Send + Sync>(
         self,
-        parse_fn: impl Fn(PathBuf) -> Result<T, Error> + Send + Sync,
+        parse_fn: impl Fn(PathBuf) -> Result<T, Box<dyn std::error::Error + Send>> + Send + Sync,
     ) -> Result<Parsed<T>, Error> {
         let inner = self
             .paths
-            .into_par_iter()
+            .into_iter()
             .map(|path| parse_fn(path))
-            .collect::<Result<Vec<T>, Error>>()?;
+            .collect::<Result<Vec<T>, Box<dyn std::error::Error + Send>>>()
+            .map_err(|e| Error::Parse(e))?;
         Ok(Parsed { items: inner })
     }
 }
@@ -222,6 +215,8 @@ impl<T: Send + Sync> Parsed<T> {
 
 #[cfg(test)]
 mod tests {
+    use serde::Deserialize;
+
     use super::*;
     use std::{env, fs};
 
@@ -276,6 +271,25 @@ mod tests {
         let paths = glob("examples/content/*.md")?.paths;
         assert_eq!(paths.len(), 1);
         assert_eq!(paths[0].to_str().unwrap(), "examples/content/about.md");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse() -> Result<(), Box<dyn std::error::Error>> {
+        #[derive(Deserialize)]
+        struct Blog {
+            title: String,
+        }
+        fn parse_fn(_path: PathBuf) -> Result<Blog, Box<dyn std::error::Error + Send>> {
+            Ok(Blog {
+                title: "foo".to_string(),
+            })
+        }
+        let parsed = glob("examples/content/blog/*.md")?
+            .parse::<Blog>(parse_fn)?
+            .into_vec();
+        assert_eq!(&parsed[0].title, "foo");
 
         Ok(())
     }
