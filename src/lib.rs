@@ -245,7 +245,13 @@ mod tests {
     use serde::Deserialize;
 
     use super::*;
+
     use std::{env, fs};
+
+    #[derive(Deserialize, Debug)]
+    struct Blog {
+        title: String,
+    }
 
     #[test]
     fn test_write() -> Result<(), Box<dyn std::error::Error>> {
@@ -304,11 +310,6 @@ mod tests {
 
     #[test]
     fn test_parse() -> Result<(), Box<dyn std::error::Error>> {
-        #[derive(Deserialize)]
-        struct Blog {
-            title: String,
-        }
-
         let parsed = glob("examples/content/blog/*.md")?
             .parse::<Blog>(|_path| Blog {
                 title: "foo".to_string(),
@@ -334,6 +335,86 @@ mod tests {
             .into_vec();
         assert!(!parsed[0].contents.is_empty());
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_render_each_all() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = env::temp_dir().join("pichu_test_render_each_all");
+        if dir.exists() {
+            fs::remove_dir_all(&dir)?;
+        }
+
+        glob("examples/content/blog/*.md")?
+            .parse_markdown::<Blog>()?
+            .render_each(
+                |blog| format!("<h1>{}</h1>", blog.frontmatter.title),
+                |blog| dir.join(format!("blog/{}.html", blog.basename)),
+            )?
+            .render_all(
+                |posts| format!("<p>Number of posts: {}</p>", posts.len()),
+                dir.join("blog.html"),
+            )?;
+
+        assert_eq!(
+            fs::read_to_string(dir.join("blog/hello-world.html"))?,
+            "<h1>Hello, world</h1>".to_string()
+        );
+        assert_eq!(
+            fs::read_to_string(dir.join("blog.html"))?,
+            "<p>Number of posts: 1</p>".to_string()
+        );
+
+        fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_try_render_each_all() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = env::temp_dir().join("pichu_test_try_render_each_all");
+        if dir.exists() {
+            fs::remove_dir_all(&dir)?;
+        }
+
+        #[derive(thiserror::Error, Debug)]
+        enum RenderError {
+            #[error("Missing frontmatter")]
+            MissingFrontmatter,
+            #[error("No posts")]
+            NoPosts,
+        }
+
+        glob("examples/content/blog/*.md")?
+            .parse_markdown::<Blog>()?
+            .try_render_each(
+                |blog| {
+                    if blog.frontmatter.title.is_empty() {
+                        return Err(RenderError::MissingFrontmatter);
+                    }
+                    Ok(format!("<h1>{}</h1>", blog.frontmatter.title))
+                },
+                |blog| dir.join(format!("blog/{}.html", blog.basename)),
+            )?
+            .try_render_all(
+                |posts| {
+                    if posts.is_empty() {
+                        return Err(RenderError::NoPosts);
+                    }
+                    Ok(format!("<p>Number of posts: {}</p>", posts.len()))
+                },
+                dir.join("blog.html"),
+            )?;
+
+        assert_eq!(
+            fs::read_to_string(dir.join("blog/hello-world.html"))?,
+            "<h1>Hello, world</h1>".to_string()
+        );
+        assert_eq!(
+            fs::read_to_string(dir.join("blog.html"))?,
+            "<p>Number of posts: 1</p>".to_string()
+        );
+
+        fs::remove_dir_all(&dir)?;
         Ok(())
     }
 }
