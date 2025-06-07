@@ -30,7 +30,7 @@
 
 use rayon::prelude::*;
 use std::{
-    fs, io,
+    fmt, fs, io,
     path::{Path, PathBuf},
 };
 
@@ -53,12 +53,12 @@ pub enum Error {
     GlobPatternError(#[from] glob::PatternError),
     #[error("{0}")]
     GlobError(#[from] glob::GlobError),
-    #[error("render fn error: {0}")]
-    RenderFn(#[from] Box<dyn std::error::Error + Send + Sync>),
+    #[error("render error: {0:?}")]
+    Render(Box<dyn fmt::Debug + Send + Sync>),
     #[error("file exists: {0}")]
     FileExists(PathBuf),
-    #[error("parse error; {0}")]
-    Parse(Box<dyn std::error::Error + Send + Sync>),
+    #[error("parse error: {0:?}")]
+    Parse(Box<dyn fmt::Debug + Send + Sync>),
 }
 
 /// Like [`fs::write`], but creates directories as necessary.
@@ -122,7 +122,7 @@ impl Glob {
     }
 
     /// Parse the files in parallel using the provided parse_fn.
-    pub fn try_parse<T: Send + Sync, E: std::error::Error + Send + Sync + 'static>(
+    pub fn try_parse<T: Send + Sync, E: fmt::Debug + Send + Sync + 'static>(
         self,
         parse_fn: impl Fn(PathBuf) -> Result<T, E> + Send + Sync,
     ) -> Result<Parsed<T>, Error> {
@@ -187,7 +187,7 @@ impl<T: Send + Sync> Parsed<T> {
     pub fn try_render_each<
         P: AsRef<Path>,
         S: Into<String> + Send,
-        E: std::error::Error + Send + Sync + 'static,
+        E: fmt::Debug + Send + Sync + 'static,
     >(
         self,
         render_fn: impl Fn(&T) -> Result<S, E> + Send + Sync,
@@ -200,7 +200,7 @@ impl<T: Send + Sync> Parsed<T> {
                 Ok((item, content))
             })
             .collect::<Result<Vec<_>, E>>()
-            .map_err(|e| Error::RenderFn(Box::new(e)))?
+            .map_err(|e| Error::Render(Box::new(e)))?
             .into_par_iter()
             .map(|(item, content)| write(build_path_fn(item), content.into()).map_err(Error::IO))
             .collect::<Result<Vec<_>, Error>>()?;
@@ -219,12 +219,12 @@ impl<T: Send + Sync> Parsed<T> {
     }
 
     /// Render all items into a single destination.
-    pub fn try_render_all<S: Into<String>, E: std::error::Error + Send + Sync + 'static>(
+    pub fn try_render_all<S: Into<String>, E: fmt::Debug + Send + Sync + 'static>(
         self,
         render_fn: impl Fn(&Vec<T>) -> Result<S, E>,
         dest_path: impl AsRef<Path>,
     ) -> Result<Self, Error> {
-        let content = render_fn(&self.items).map_err(|e| Error::RenderFn(e.into()))?;
+        let content = render_fn(&self.items).map_err(|e| Error::Render(Box::new(e)))?;
         write(dest_path, content.into())?;
         Ok(self)
     }

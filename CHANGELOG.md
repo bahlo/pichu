@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-06-07
+
+## Changed
+
+- `Error` is now Sync
+- `Error::Render` and `Error::Parse` no longer require the `std::error::Error` trait for more flexibility
+- `Error::RenderFn` is renamed to `Error::Render`
+
 ## [0.3.0] - 2025-06-07
 
 ## Added
