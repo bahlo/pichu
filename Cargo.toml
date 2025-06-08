@@ -1,6 +1,6 @@
 [package]
 name = "pichu"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 authors = ["Arne Bahlo <hey@arne.me>"]
 license = "MIT OR Apache-2.0"
@@ -26,13 +26,14 @@ grass = { version = "0.13", default-features = false, features = [
 ], optional = true }
 blake3 = { version = "1.8", optional = true }
 # watch
-notify = { version = "8", optional = true }
+notify = { version = "6.1", optional = true }
+notify-debouncer-mini = { version = "0.4", optional = true }
 
 [features]
 default = ["markdown", "sass", "watch"]
 markdown = ["gray_matter", "serde", "syntect", "comrak", "serde_json"]
 sass = ["grass", "blake3"]
-watch = ["notify"]
+watch = ["notify", "notify-debouncer-mini"]
 
 [dev-dependencies]
 maud = "0.27"

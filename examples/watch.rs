@@ -7,7 +7,7 @@ struct Blogpost {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    pichu::watch("examples/content", |paths| {
+    pichu::watch(vec!["examples/content", "examples/assets"], |paths| {
         println!("Paths changed: {:?}", paths);
         if let Err(e) = build() {
             eprintln!("Build error: {}", e);
