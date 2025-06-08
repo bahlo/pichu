@@ -12,14 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.2] - 2025-06-08
 
-## Added
+### Added
 
 - Export `parse_markdown` fn, to allow people to add logic before/after in `try_parse`.
 - Add missing docs and lint for it
 
 ## [0.3.1] - 2025-06-07
 
-## Changed
+### Changed
 
 - `Error` is now Sync
 - `Error::Render` and `Error::Parse` no longer require the `std::error::Error` trait for more flexibility
@@ -27,18 +27,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2025-06-07
 
-## Added
+### Added
 - `try_parse`, `try_render` and `try_render_each`, improve ergonomics of these and the non-try Fns
 - Parallel sorting
 - Basic test suite
 
-## Changed
+### Changed
 - Move markdown, sass error to their own module
 - Adapt argument order of `pichu::write` to match that of `fs::write`
 
 ## [0.2.0] - 2025-06-03
 
-## Added
+### Added
 - `copy_dir` fn
 - Basic documentation
 - Examples
