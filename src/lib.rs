@@ -37,7 +37,7 @@ use std::{
 #[cfg(feature = "markdown")]
 mod markdown;
 #[cfg(feature = "markdown")]
-pub use markdown::{Markdown, MarkdownError};
+pub use markdown::{parse_markdown, Markdown, MarkdownError};
 
 #[cfg(feature = "sass")]
 mod sass;

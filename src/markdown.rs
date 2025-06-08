@@ -2,6 +2,7 @@ use comrak::{markdown_to_html_with_plugins, plugins::syntect::SyntectAdapter};
 use gray_matter::{engine::YAML, Matter};
 use serde::de::DeserializeOwned;
 use std::{
+    cell::LazyCell,
     fmt,
     fs::File,
     io::{self, Read},
@@ -30,6 +31,9 @@ impl From<MarkdownError> for Box<dyn std::error::Error + Send> {
     }
 }
 
+/// SyntectAdapter::new loads a few binary files from disk, better to do this only once.
+const SYNTECT_ADAPTER: LazyCell<SyntectAdapter> = LazyCell::new(|| SyntectAdapter::new(None));
+
 /// A parsed markdown file.
 #[derive(Debug, Clone)]
 pub struct Markdown<T> {
@@ -47,46 +51,47 @@ impl Glob {
     pub fn parse_markdown<T: DeserializeOwned + fmt::Debug + Send + Sync>(
         self,
     ) -> Result<Parsed<Markdown<T>>, Error> {
-        let syntect_adapter = SyntectAdapter::new(None);
-        let markdown_context = MarkdownContext::new(&syntect_adapter);
-        let matter = Matter::<YAML>::new();
-
-        self.try_parse::<Markdown<T>, MarkdownError>(|path| {
-            let mut file = File::open(&path).map_err(MarkdownError::IO)?;
-            let mut contents = String::new();
-            file.read_to_string(&mut contents)
-                .map_err(MarkdownError::IO)?;
-
-            let markdown = matter.parse(&contents);
-            let frontmatter: T = markdown
-                .data
-                .ok_or(MarkdownError::MissingFrontmatter(path.clone()))?
-                .deserialize()
-                .map_err(|e| MarkdownError::DeserializeFrontmatter(path.clone(), e))?;
-
-            let html = markdown_to_html_with_plugins(
-                &markdown.content,
-                &markdown_context.options,
-                &markdown_context.plugins,
-            );
-
-            let basename = path
-                .file_stem()
-                .ok_or_else(|| MarkdownError::NoFileStem(path.clone()))?
-                .to_string_lossy()
-                .to_string();
-
-            Ok(Markdown {
-                frontmatter,
-                basename,
-                markdown: markdown.content,
-                html,
-            })
-        })
+        self.try_parse::<Markdown<T>, MarkdownError>(parse_markdown)
     }
 }
 
-struct MarkdownContext<'a> {
+pub fn parse_markdown<T: DeserializeOwned>(path: PathBuf) -> Result<Markdown<T>, MarkdownError> {
+    let mut file = File::open(&path).map_err(MarkdownError::IO)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)
+        .map_err(MarkdownError::IO)?;
+
+    let matter = Matter::<YAML>::new();
+    let markdown = matter.parse(&contents);
+    let frontmatter: T = markdown
+        .data
+        .ok_or(MarkdownError::MissingFrontmatter(path.clone()))?
+        .deserialize()
+        .map_err(|e| MarkdownError::DeserializeFrontmatter(path.clone(), e))?;
+
+    let syntect_adapter = &*SYNTECT_ADAPTER;
+    let markdown_context = MarkdownContext::new(syntect_adapter);
+    let html = markdown_to_html_with_plugins(
+        &markdown.content,
+        &markdown_context.options,
+        &markdown_context.plugins,
+    );
+
+    let basename = path
+        .file_stem()
+        .ok_or_else(|| MarkdownError::NoFileStem(path.clone()))?
+        .to_string_lossy()
+        .to_string();
+
+    Ok(Markdown {
+        frontmatter,
+        basename,
+        markdown: markdown.content,
+        html,
+    })
+}
+
+pub struct MarkdownContext<'a> {
     plugins: comrak::Plugins<'a>,
     options: comrak::Options<'a>,
 }

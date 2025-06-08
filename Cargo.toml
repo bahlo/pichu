@@ -1,6 +1,6 @@
 [package]
 name = "pichu"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 authors = ["Arne Bahlo <hey@arne.me>"]
 license = "MIT OR Apache-2.0"
