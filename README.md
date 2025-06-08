@@ -29,6 +29,11 @@ pichu::render_sass("assets/main.scss", "dist/main.css")?;
 pichu::copy_dir("static/", "dist/")?;
 ```
 
+## Examples
+
+* [pichu-starter](https://github.com/bahlo/pichu-starter), a template repository to get started quickly
+* [arne.me](https://github.com/bahlo/arne.me)
+
 ## Features
 
 * `markdown` (default): Enable the [`parse_markdown`](https://docs.rs/pichu/latest/pichu/struct.Glob.html#method.parse_markdown) method.
