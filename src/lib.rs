@@ -30,6 +30,7 @@
 
 #![deny(warnings)]
 #![deny(clippy::pedantic, clippy::unwrap_used)]
+#![deny(missing_docs)]
 
 use rayon::prelude::*;
 use std::{
@@ -50,18 +51,24 @@ pub use sass::{render_sass, SassError};
 /// The error type returned in this crate.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    /// I/O error.
     #[error("io error: {0}")]
     IO(#[from] io::Error),
+    /// Invalid glob pattern.
     #[error("{0}")]
     GlobPatternError(#[from] glob::PatternError),
+    /// Failed to process glob result.
     #[error("{0}")]
     GlobError(#[from] glob::GlobError),
-    #[error("render error: {0:?}")]
-    Render(Box<dyn fmt::Debug + Send + Sync>),
-    #[error("file exists: {0}")]
-    FileExists(PathBuf),
+    /// Error occurred while parsing.
     #[error("parse error: {0:?}")]
     Parse(Box<dyn fmt::Debug + Send + Sync>),
+    /// Error occurred during render.
+    #[error("render error: {0:?}")]
+    Render(Box<dyn fmt::Debug + Send + Sync>),
+    /// File already exists at the destination path.
+    #[error("file exists: {0}")]
+    FileExists(PathBuf),
 }
 
 /// Like [`fs::write`], but creates directories as necessary.
@@ -131,11 +138,9 @@ pub struct Glob {
 }
 
 impl Glob {
-    pub fn parse<T: Send + Sync>(
-        self,
-        parse_fn: impl Fn(&PathBuf) -> T + Send + Sync,
-    ) -> Parsed<T> {
-        let items = self.paths.par_iter().map(parse_fn).collect::<Vec<T>>();
+    /// Parse the files using the provided parse function.
+    pub fn parse<T: Send + Sync>(self, parse_fn: impl Fn(PathBuf) -> T + Send + Sync) -> Parsed<T> {
+        let items = self.paths.into_par_iter().map(parse_fn).collect::<Vec<T>>();
         Parsed { items }
     }
 

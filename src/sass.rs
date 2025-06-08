@@ -2,10 +2,13 @@ use std::{io, path::Path};
 
 use crate::write;
 
+/// Error type for SASS/SCSS compilation operations.
 #[derive(thiserror::Error, Debug)]
 pub enum SassError {
+    /// I/O error.
     #[error("io error: {0}")]
     IO(#[from] io::Error),
+    /// SASS/SCSS compilation failed.
     #[error("failed to compile sass: {0}")]
     SassCompile(#[from] Box<grass::Error>),
 }

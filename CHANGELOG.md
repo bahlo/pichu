@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Added
 
 - Export `parse_markdown` fn, to allow people to add logic before/after in `try_parse`.
+- Add missing docs and lint for it
 
 ## [0.3.1] - 2025-06-07
 

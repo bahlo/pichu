@@ -11,16 +11,19 @@ use std::{
 
 use crate::{Error, Glob, Parsed};
 
+/// Error type for markdown parsing operations.
 #[derive(thiserror::Error, Debug)]
 pub enum MarkdownError {
+    /// I/O error.
     #[error("io error: {0}")]
     IO(#[from] io::Error),
+    /// The markdown file is missing frontmatter.
     #[error("missing frontmatter in {0}")]
     MissingFrontmatter(PathBuf),
-    #[cfg(feature = "markdown")]
+    /// Failed to deserialize the frontmatter YAML.
     #[error("failed to deserialize frontmatter for {0}: {1}")]
     DeserializeFrontmatter(PathBuf, serde_json::error::Error),
-    #[cfg(feature = "markdown")]
+    /// The file path has no file stem (filename without extension).
     #[error("no file stem for: {0}")]
     NoFileStem(PathBuf),
 }
@@ -37,9 +40,13 @@ static SYNTECT_ADAPTER: LazyLock<SyntectAdapter> = LazyLock::new(|| SyntectAdapt
 /// A parsed markdown file.
 #[derive(Debug, Clone)]
 pub struct Markdown<T> {
+    /// The parsed frontmatter.
     pub frontmatter: T,
+    /// Filename without extension.
     pub basename: String,
+    /// The raw markdown content (without frontmatter).
     pub markdown: String,
+    /// The rendered HTML content.
     pub html: String,
 }
 
