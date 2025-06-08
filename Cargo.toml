@@ -25,11 +25,14 @@ grass = { version = "0.13", default-features = false, features = [
     "random",
 ], optional = true }
 blake3 = { version = "1.8", optional = true }
+# watch
+notify = { version = "8", optional = true }
 
 [features]
-default = ["markdown", "sass"]
+default = ["markdown", "sass", "watch"]
 markdown = ["gray_matter", "serde", "syntect", "comrak", "serde_json"]
 sass = ["grass", "blake3"]
+watch = ["notify"]
 
 [dev-dependencies]
 maud = "0.27"

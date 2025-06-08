@@ -48,6 +48,11 @@ mod sass;
 #[cfg(feature = "sass")]
 pub use sass::{render_sass, SassError};
 
+#[cfg(feature = "watch")]
+mod watch;
+#[cfg(feature = "watch")]
+pub use watch::watch;
+
 /// The error type returned in this crate.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
