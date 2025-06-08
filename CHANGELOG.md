@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Change signature of `parse`, `try_parse` to take `&PathBuf` instead of `PathBuf`
+- Add strict clippy settings
+
 ## [0.3.2] - 2025-06-08
 
 ## Added

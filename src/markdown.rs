@@ -2,11 +2,11 @@ use comrak::{markdown_to_html_with_plugins, plugins::syntect::SyntectAdapter};
 use gray_matter::{engine::YAML, Matter};
 use serde::de::DeserializeOwned;
 use std::{
-    cell::LazyCell,
     fmt,
     fs::File,
     io::{self, Read},
     path::PathBuf,
+    sync::LazyLock,
 };
 
 use crate::{Error, Glob, Parsed};
@@ -31,8 +31,8 @@ impl From<MarkdownError> for Box<dyn std::error::Error + Send> {
     }
 }
 
-/// SyntectAdapter::new loads a few binary files from disk, better to do this only once.
-const SYNTECT_ADAPTER: LazyCell<SyntectAdapter> = LazyCell::new(|| SyntectAdapter::new(None));
+/// `SyntectAdapter::new` loads a few binary files from disk, better to do this only once.
+static SYNTECT_ADAPTER: LazyLock<SyntectAdapter> = LazyLock::new(|| SyntectAdapter::new(None));
 
 /// A parsed markdown file.
 #[derive(Debug, Clone)]
@@ -47,6 +47,10 @@ impl Glob {
     /// Parse the paths as Markdown files.
     /// You are encouraged to copy-paste this function into your codebase to
     /// adapt it to your needs, if required.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any markdown file cannot be parsed or if frontmatter is missing/invalid.
     #[cfg(feature = "markdown")]
     pub fn parse_markdown<T: DeserializeOwned + fmt::Debug + Send + Sync>(
         self,
@@ -55,8 +59,13 @@ impl Glob {
     }
 }
 
-pub fn parse_markdown<T: DeserializeOwned>(path: PathBuf) -> Result<Markdown<T>, MarkdownError> {
-    let mut file = File::open(&path).map_err(MarkdownError::IO)?;
+/// Parse a markdown file at the given path.
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be read, frontmatter is missing/invalid, or path has no file stem.
+pub fn parse_markdown<T: DeserializeOwned>(path: &PathBuf) -> Result<Markdown<T>, MarkdownError> {
+    let mut file = File::open(path).map_err(MarkdownError::IO)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .map_err(MarkdownError::IO)?;
@@ -107,7 +116,7 @@ impl<'a> MarkdownContext<'a> {
             tagfilter: true,
             table: true,
             superscript: true,
-            header_ids: Some("".to_string()),
+            header_ids: Some(String::new()),
             footnotes: true,
             description_lists: true,
             ..Default::default()

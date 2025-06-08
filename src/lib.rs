@@ -28,6 +28,9 @@
 //! }
 //! ```
 
+#![deny(warnings)]
+#![deny(clippy::pedantic, clippy::unwrap_used)]
+
 use rayon::prelude::*;
 use std::{
     fmt, fs, io,
@@ -62,6 +65,10 @@ pub enum Error {
 }
 
 /// Like [`fs::write`], but creates directories as necessary.
+///
+/// # Errors
+///
+/// Returns an error if the parent directory cannot be created or if the file cannot be written.
 pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> Result<(), io::Error> {
     if let Some(parent) = path.as_ref().parent() {
         fs::create_dir_all(parent)?;
@@ -70,8 +77,12 @@ pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> Result<(), i
     Ok(())
 }
 
-// Copy the contents of a directory into another, recursively.
-// Skips files starting with a `.`, except `.well-known`.
+/// Copy the contents of a directory into another, recursively.
+/// Skips files starting with a `.`, except `.well-known`.
+///
+/// # Errors
+///
+/// Returns an error if directories cannot be created, files cannot be copied, or if a file already exists at the destination.
 pub fn copy_dir(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), Error> {
     fs::create_dir_all(to.as_ref())?;
     fs::read_dir(from.as_ref())?
@@ -104,6 +115,10 @@ pub fn copy_dir(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), Erro
 }
 
 /// Get a list of paths that match the given glob.
+///
+/// # Errors
+///
+/// Returns an error if the glob pattern is invalid or if there are filesystem access issues.
 pub fn glob(glob: impl AsRef<str>) -> Result<Glob, Error> {
     let paths = glob::glob(glob.as_ref())?.collect::<Result<Vec<PathBuf>, glob::GlobError>>()?;
     Ok(Glob { paths })
@@ -116,19 +131,26 @@ pub struct Glob {
 }
 
 impl Glob {
-    pub fn parse<T: Send + Sync>(self, parse_fn: impl Fn(PathBuf) -> T + Send + Sync) -> Parsed<T> {
-        let items = self.paths.into_par_iter().map(parse_fn).collect::<Vec<T>>();
+    pub fn parse<T: Send + Sync>(
+        self,
+        parse_fn: impl Fn(&PathBuf) -> T + Send + Sync,
+    ) -> Parsed<T> {
+        let items = self.paths.par_iter().map(parse_fn).collect::<Vec<T>>();
         Parsed { items }
     }
 
-    /// Parse the files in parallel using the provided parse_fn.
+    /// Parse the files in parallel using the provided `parse_fn`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the files fail to parse.
     pub fn try_parse<T: Send + Sync, E: fmt::Debug + Send + Sync + 'static>(
         self,
-        parse_fn: impl Fn(PathBuf) -> Result<T, E> + Send + Sync,
+        parse_fn: impl Fn(&PathBuf) -> Result<T, E> + Send + Sync,
     ) -> Result<Parsed<T>, Error> {
         let items = self
             .paths
-            .into_par_iter()
+            .par_iter()
             .map(parse_fn)
             .collect::<Result<Vec<T>, E>>()
             .map_err(|e| Error::Parse(Box::new(e)))?;
@@ -144,6 +166,7 @@ pub struct Parsed<T: Send + Sync> {
 
 impl<T: Send + Sync> Parsed<T> {
     /// Sort the items by the key provided, ascending.
+    #[must_use]
     pub fn sort_by_key<K, F>(mut self, f: F) -> Self
     where
         F: Fn(&T) -> K + Sync,
@@ -154,6 +177,7 @@ impl<T: Send + Sync> Parsed<T> {
     }
 
     /// Sort the items by the key provided, descending.
+    #[must_use]
     pub fn sort_by_key_reverse<K, F>(mut self, f: F) -> Self
     where
         F: Fn(&T) -> K + Sync,
@@ -165,6 +189,10 @@ impl<T: Send + Sync> Parsed<T> {
     }
 
     /// Render individual items in parallel using the provided render function.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any file cannot be written to the filesystem.
     pub fn render_each<P: AsRef<Path>, S: Into<String> + Send>(
         self,
         render_fn: impl Fn(&T) -> S + Send + Sync,
@@ -184,6 +212,10 @@ impl<T: Send + Sync> Parsed<T> {
     }
 
     /// Render individual items in parallel using the provided render function.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the render function fails for any item or if any file cannot be written.
     pub fn try_render_each<
         P: AsRef<Path>,
         S: Into<String> + Send,
@@ -208,6 +240,10 @@ impl<T: Send + Sync> Parsed<T> {
     }
 
     /// Render all items into a single destination.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be written to the filesystem.
     pub fn render_all<S: Into<String>>(
         self,
         render_fn: impl Fn(&Vec<T>) -> S,
@@ -219,6 +255,10 @@ impl<T: Send + Sync> Parsed<T> {
     }
 
     /// Render all items into a single destination.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the render function fails or if the file cannot be written.
     pub fn try_render_all<S: Into<String>, E: fmt::Debug + Send + Sync + 'static>(
         self,
         render_fn: impl Fn(&Vec<T>) -> Result<S, E>,
@@ -230,11 +270,13 @@ impl<T: Send + Sync> Parsed<T> {
     }
 
     /// Extract the underlying `Vec<T>` for further processing.
+    #[must_use]
     pub fn into_vec(self) -> Vec<T> {
         self.items
     }
 
     /// Return a reference to the first item, or `None` if empty.
+    #[must_use]
     pub fn first(&self) -> Option<&T> {
         self.items.first()
     }
@@ -295,15 +337,21 @@ mod tests {
     fn test_glob() -> Result<(), Box<dyn std::error::Error>> {
         let paths = glob("examples/content/**/*.md")?.paths;
         assert_eq!(paths.len(), 2);
-        assert_eq!(paths[0].to_str().unwrap(), "examples/content/about.md");
         assert_eq!(
-            paths[1].to_str().unwrap(),
+            paths[0].to_str().expect("Path should be valid UTF-8"),
+            "examples/content/about.md"
+        );
+        assert_eq!(
+            paths[1].to_str().expect("Path should be valid UTF-8"),
             "examples/content/blog/hello-world.md"
         );
 
         let paths = glob("examples/content/*.md")?.paths;
         assert_eq!(paths.len(), 1);
-        assert_eq!(paths[0].to_str().unwrap(), "examples/content/about.md");
+        assert_eq!(
+            paths[0].to_str().expect("Path should be valid UTF-8"),
+            "examples/content/about.md"
+        );
 
         Ok(())
     }
@@ -371,17 +419,17 @@ mod tests {
 
     #[test]
     fn test_try_render_each_all() -> Result<(), Box<dyn std::error::Error>> {
-        let dir = env::temp_dir().join("pichu_test_try_render_each_all");
-        if dir.exists() {
-            fs::remove_dir_all(&dir)?;
-        }
-
         #[derive(thiserror::Error, Debug)]
         enum RenderError {
             #[error("Missing frontmatter")]
             MissingFrontmatter,
             #[error("No posts")]
             NoPosts,
+        }
+
+        let dir = env::temp_dir().join("pichu_test_try_render_each_all");
+        if dir.exists() {
+            fs::remove_dir_all(&dir)?;
         }
 
         glob("examples/content/blog/*.md")?
