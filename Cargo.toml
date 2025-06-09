@@ -31,7 +31,7 @@ grass = { version = "0.13", default-features = false, features = [
 blake3 = { version = "1.8", optional = true }
 # watch
 notify = { version = "6.1", optional = true }
-notify-debouncer-mini = { version = "0.4", optional = true }
+notify-debouncer-mini = { version = "0.6", optional = true }
 
 [features]
 default = ["markdown", "sass", "watch"]
