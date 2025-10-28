@@ -20,7 +20,7 @@ gray_matter = { version = "0.2", optional = true, default-features = false, feat
 ] }
 serde = { version = "1", features = ["derive"], optional = true }
 syntect = { version = "5.2", optional = true }
-comrak = { version = "0.39", optional = true, default-features = false, features = [
+comrak = { version = "0.46", optional = true, default-features = false, features = [
     "syntect",
 ] }
 serde_json = { version = "1", optional = true }
