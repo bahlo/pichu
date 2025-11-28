@@ -1,3 +1,7 @@
+### :warning: This repo has moved to [codeberg.org/enra/pichu](https://codeberg.org/enra/pichu).
+
+----
+
 # pichu
 
 [![CI](https://github.com/bahlo/pichu/actions/workflows/ci.yml/badge.svg)](https://github.com/bahlo/pichu/actions/workflows/ci.yml)
